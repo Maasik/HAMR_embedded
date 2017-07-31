@@ -9,4 +9,4 @@ Be sure to have all libraries downloaded (they can be found online) and copied t
 
 Otherwise, simply upload to the Arduino, connecti to the access point (hamr_net), and use the provided Python libraries to control the HAMR!
 
-Feel free to contact me at hyoo[at]seas.upenn.edu for more information.
+Feel free to contact me at aspecian[at]seas.upenn.edu for more information.
