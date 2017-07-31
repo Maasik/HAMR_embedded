@@ -147,6 +147,8 @@ float time_elapsed; // microseconds
 float time_elapsed_millis; // time_elapsed converted 
 int loop_time_duration; // Timing loop time- for performance testing
 unsigned long last_debug_time = 0;//Timing tracker for debug messages.
+unsigned long last_command_time = 0;//Timing tracker for command signals.
+int COMMAND_TIMEOUT = 10000;//timeout value to reset commmands
 
 /******************************/
 /*    Test Drive Variables    */
@@ -339,10 +341,17 @@ void loop() {
          //Serial.println(360*sensed_drive_angle);// print theta orientation
          last_debug_time = micros();
 //         print_pid_errors();
-           print_actual_motor_velocities();
+         print_actual_motor_velocities();
 //         print_desired_motor_velocities();
           
        }
+
+       //if time exceed the threshold since last command (in case of network or computer failure), reset the cmd to halt the robot
+      if (micros()-last_command_time > COMMAND_TIMEOUT){
+         M1_v_cmd = 0;
+         M2_v_cmd = 0;
+         MT_v_cmd = 0;
+      }
 
       if (loop_time_duration>5000){ // catch exceptionally long delays
         Serial.print("delay warning ");
@@ -356,18 +365,20 @@ void loop() {
  * Debugging method that prints the motor velocities calculated from the encoder readings.
  */
 void print_actual_motor_velocities() {
-    Serial.println("Sensed M1 velocity: " + String(sensed_M1_v));
-    Serial.println("Sensed M2 velocity: " + String(sensed_M2_v));
-    Serial.println("Sensed MT velocity: " + String(sensed_MT_v));
+//    Serial.println("Sensed M1 velocity: " + String(sensed_M1_v));
+//    Serial.println("Sensed M2 velocity: " + String(sensed_M2_v));
+//    Serial.println("Sensed MT velocity: " + String(sensed_MT_v));
+    Serial.println("Sensed velocity: " + String(sensed_MT_v)+","+String(sensed_M2_v)+","+String(sensed_MT_v));
 }
 
 /**
  * Debugging method that prints the desired motor velocities set from the client.
  */
 void print_desired_motor_velocities() {
-    Serial.println("Desired M1 Velocity: " + String(M1_v_cmd));
-    Serial.println("Desired M2 Velocity: " + String(M2_v_cmd));
-    Serial.println("Desired MT Velocity: " + String(MT_v_cmd)); 
+//    Serial.println("Desired M1 Velocity: " + String(M1_v_cmd));
+//    Serial.println("Desired M2 Velocity: " + String(M2_v_cmd));
+//    Serial.println("Desired MT Velocity: " + String(MT_v_cmd)); 
+    Serial.println("Desired velocity: " + String(M1_v_cmd)+","+String(M2_v_cmd)+","+String(MT_v_cmd));
 }
 
 /**
@@ -440,6 +451,7 @@ void calculate_sensed_drive_angle() {
  * Sets the velocities of the motors from the desired motor velocity values.
  */
 void set_speed_of_motors() {
+    Serial.println(M1_v_cmd);
     // sets the speed of all three of the motors
     set_speed(&pid_vars_M1,
             desired_M1_v,
@@ -487,6 +499,7 @@ void check_incoming_messages() {
       int len = Udp.read(packet_buffer, 255);
       if (len > 0) {
           packet_buffer[len] = 0;
+          last_command_time = micros();//RESET WATCHDOG HERE
       }
       handle_message(msg_manager, packet_buffer);
       //Serial.println("rx");// temp debugging measure. by andrew
