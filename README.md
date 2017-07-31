@@ -10,3 +10,7 @@ Be sure to have all libraries downloaded (they can be found online) and copied t
 Otherwise, simply upload to the Arduino, connecti to the access point (hamr_net), and use the provided Python libraries to control the HAMR!
 
 Feel free to contact me at aspecian[at]seas.upenn.edu for more information.
+
+## Library Download
+ - AS5084A(encoder): https://github.com/ZoetropeLabs/AS5048A-Arduino
+ - Wifi101(MKR1000 Wifi-shell): https://github.com/arduino-libraries/WiFi101
