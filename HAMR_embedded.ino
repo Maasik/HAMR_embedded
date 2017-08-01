@@ -148,7 +148,7 @@ float time_elapsed_millis; // time_elapsed converted
 int loop_time_duration; // Timing loop time- for performance testing
 unsigned long last_debug_time = 0;//Timing tracker for debug messages.
 unsigned long last_command_time = 0;//Timing tracker for command signals.
-int COMMAND_TIMEOUT = 10000;//timeout value to reset commmands
+int COMMAND_TIMEOUT = 50000;//timeout value to reset commmands (microseconds)
 
 /******************************/
 /*    Test Drive Variables    */
@@ -350,7 +350,7 @@ void loop() {
     set_speed_of_motors();
     //print_pid_errors();
     // print_desired_motor_velocities();
-    // print_actual_motor_velocities();
+    print_actual_motor_velocities();
 
     //Serial.print("drive angle: ");
     //Serial.println(360*sensed_drive_angle);// print theta orientation
@@ -503,7 +503,6 @@ void set_speed_of_motors() {
 */
 void check_incoming_messages() {
   int packet_size = Udp.parsePacket();
-  Serial.println(String(packet_size));
   if (packet_size) {
     int len = Udp.read(packet_buffer, 255);
     if (len > 0) {
