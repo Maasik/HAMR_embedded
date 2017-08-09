@@ -12,12 +12,13 @@
  */
 #define TICKS_PER_REV_DDRIVE  16383.0                  // number of encoder ticks in one full rotation on diff drive motor
 #define TICKS_PER_REV_TURRET  16383.0 * (225.0/24.0)*16.0  // actual measured 1024.0 * (225/24) (16383 the new encoder, 225/24 being the other gear, 16 being the turret motor gearbox). Note this was 220/24 for some reason.
-#define WHEEL_DIAMETER        0.12192                 // actually 4.85 ' diameter // in meters (4.8' diameter)  
+#define WHEEL_DIAMETER        0.1524//0.12192                 // actually 4.85 ' diameter // in meters (4.8' diameter)  
 #define WHEEL_RADIUS          (WHEEL_DIAMETER / 2.0)  // wheel radius, in meters
-#define WHEEL_DIST            0.270413 //0.328168                // distance between diff drive wheels, in meters (12.92')
+#define WHEEL_DIST            0.246634//0.270413 //0.328168                // distance between diff drive wheels, in meters (12.92')
 #define DIST_PER_REV          (PI*WHEEL_DIAMETER)     // circumference of wheel in meters
 #define LOOPTIME              1000                    // Desired speed of the main loop in microseconds
-#define DEBUGTIME             100000                    // Desired speed of the main loop in microseconds
+#define DEBUGTIME             100000                  // Desired speed of the main loop in microseconds
+#define COMMAND_TIMEOUT       1000000                 // UDP packect timeout
 
 
 /**

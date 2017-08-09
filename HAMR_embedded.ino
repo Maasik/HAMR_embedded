@@ -148,7 +148,6 @@ float time_elapsed_millis; // time_elapsed converted
 int loop_time_duration; // Timing loop time- for performance testing
 unsigned long last_debug_time = 0;//Timing tracker for debug messages.
 unsigned long last_command_time = 0;//Timing tracker for command signals.
-int COMMAND_TIMEOUT = 50000;//timeout value to reset commmands (microseconds)
 
 /******************************/
 /*    Test Drive Variables    */
@@ -202,8 +201,8 @@ float dummy2 = 0;
 /*         Wifi        */
 /***********************/
 int status = WL_IDLE_STATUS;
-char ssid[] = "hamr_net"; // network name
-char pass[] = "1231231234"; // WEP password. Change when appropraite
+char ssid[] = "quori_onboard";//"hamr_net"; // network name
+char pass[] = "Modlab3142";//"1231231234"; // WEP password. Change when appropraite
 int keyIndex = 0;
 WiFiServer server(80);
 unsigned int local_port = 2390; // arbitrary local port selected to listen on
@@ -228,7 +227,8 @@ void setup() {
   init_actuators();           // initialiaze all motors
   Serial.println("Done setting motors");
   Serial.println("Setting up Wifi...");
-  start_wifi();
+  //start_wifi();
+  connect_wifi();
   Serial.println("Done setting Wifi");
   //init_I2C();               // initialize I2C bus as master
   start_time = millis();      // Start timer
@@ -270,6 +270,20 @@ void start_wifi() {
   Udp.begin(local_port);
 }
 
+void connect_wifi() {
+  if (WiFi.status() == WL_NO_SHIELD) {
+    Serial.println("WiFi shield not present");
+    while (true);
+  }
+  while ( status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to WPA SSID:");
+    Serial.println(ssid);
+    status = WiFi.begin(ssid, pass);
+    delay(10000);
+    Udp.begin(local_port);
+  }
+}
+
 /**
    Prints the Arduino AP's name, IP, and signal strength
 */
@@ -290,17 +304,24 @@ void print_wifi_status() {
    Checks whether some device connects to the Arduino AP.
 */
 void check_wifi_status() {
-  if (status != WiFi.status()) {
-    status = WiFi.status();
-    Serial.println("WiFi status changed: ");
-    if (status == WL_AP_CONNECTED) {
-      Serial.println("A device has connected to the HAMR Access Point");
-      Udp.flush();
-      Udp.begin(local_port);
-    } else {
-      Serial.println("A device has disconnected from the HAMR Access point: ");
-    }
+  //  if (status != WiFi.status()) {
+  //    status = WiFi.status();
+  //    Serial.println("WiFi status changed: ");
+  //    if (status == WL_AP_CONNECTED) {
+  //      Serial.println("A device has connected to the HAMR Access Point");
+  //      Udp.flush();
+  //      Udp.begin(local_port);
+  //    } else {
+  //      Serial.println("A device has disconnected from the HAMR Access point: ");
+  //    }
+  //  }
+  if (status == WL_CONNECTED) return;
+  while ( status != WL_CONNECTED) {
+    status = WiFi.begin(ssid, pass);
+    delay(10000);
   }
+  Udp.flush();
+  Udp.begin(local_port);
 }
 
 /**
@@ -328,9 +349,9 @@ void loop() {
     last_recorded_time = micros();
     check_wifi_status();
     check_incoming_messages();
-    
+
     unsigned long time_diff = micros() - last_command_time;
-    if (time_diff > 100000) {
+    if (time_diff > COMMAND_TIMEOUT) {
       desired_h_xdot = 0;
       desired_h_ydot = 0;
       desired_h_rdot = 0;
@@ -339,14 +360,14 @@ void loop() {
       desired_MT_v = 0;
       Serial.println("command timeout:" + String(time_diff));
     }
-    
+
     compute_sensed_motor_velocities();
     calculate_sensed_drive_angle();
     // check_for_test_execution(); // takes care of drive demo test commands.TODO prevent this from running test if kill command was sent
     if (use_holonomic_drive) {
       holonomic_drive();
     }
-    
+
     set_speed_of_motors();
     //print_pid_errors();
     // print_desired_motor_velocities();
@@ -377,7 +398,7 @@ void print_actual_motor_velocities() {
   //    Serial.println("Sensed M1 velocity: " + String(sensed_M1_v));
   //    Serial.println("Sensed M2 velocity: " + String(sensed_M2_v));
   //    Serial.println("Sensed MT velocity: " + String(sensed_MT_v));
-  Serial.println("Sensed velocity: " + String(sensed_MT_v) + "," + String(sensed_M2_v) + "," + String(sensed_MT_v));
+  Serial.println("Sensed velocity: " + String(sensed_M1_v) + "," + String(sensed_M2_v) + "," + String(sensed_MT_v));
 }
 
 /**
