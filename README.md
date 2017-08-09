@@ -14,3 +14,4 @@ Feel free to contact me at aspecian[at]seas.upenn.edu for more information.
 ## Library Download
  - AS5084A(encoder): https://github.com/ZoetropeLabs/AS5048A-Arduino
  - Wifi101(MKR1000 Wifi-shell): https://github.com/arduino-libraries/WiFi101
+ - Go to Board Manager in the Arduino IDE and install the SAMD board. This will give you access to the MKR1000 drivers.
