@@ -32,6 +32,7 @@
 /*                                                 */
 /***************************************************/
 int debugmessage = 0;
+int wifi_mode = 0; // 0 for AP mode, 1 for CL mode
 /******************/
 /* Desired Values */
 /******************/
@@ -201,8 +202,10 @@ float dummy2 = 0;
 /*         Wifi        */
 /***********************/
 int status = WL_IDLE_STATUS;
-char ssid[] = "quori_onboard";//"hamr_net"; // network name
-char pass[] = "Modlab3142";//"1231231234"; // WEP password. Change when appropraite
+char ssid_cl[] = "quori_onboard"; // network name
+char pass_cl[] = "Modlab3142"; // WEP password. Change when appropraite
+char ssid_ap[] = "hamr_net"; // network name
+char pass_ap[] = "1231231234"; // WEP password. Change when appropraite
 int keyIndex = 0;
 WiFiServer server(80);
 unsigned int local_port = 2390; // arbitrary local port selected to listen on
@@ -227,8 +230,8 @@ void setup() {
   init_actuators();           // initialiaze all motors
   Serial.println("Done setting motors");
   Serial.println("Setting up Wifi...");
-  //start_wifi();
-  connect_wifi();
+  if (wifi_mode == 0) start_wifi_ap();
+  else start_wifi_cl();
   Serial.println("Done setting Wifi");
   //init_I2C();               // initialize I2C bus as master
   start_time = millis();      // Start timer
@@ -252,14 +255,14 @@ void init_angle_sensors() {
   angle_sensor_MT.init();// i made the clock 10Mhz. it was 1Mhz to star
 }
 
-void start_wifi() {
+void start_wifi_ap() {
   if (WiFi.status() == WL_NO_SHIELD) {
     Serial.println("WiFi Shield is not detected- check if correct Arduino is being used and/or WiFi shield connections");
     while (true);
   }
   Serial.println("Creating access point named:");
-  Serial.println(ssid);
-  status = WiFi.beginAP(ssid, 1, pass, 1);
+  Serial.println(ssid_ap);
+  status = WiFi.beginAP(ssid_ap, 1, pass_ap, 1);
   if (status != WL_AP_LISTENING) {
     Serial.println("Creating the access point failed.");
     while (true);
@@ -270,15 +273,15 @@ void start_wifi() {
   Udp.begin(local_port);
 }
 
-void connect_wifi() {
+void start_wifi_cl() {
   if (WiFi.status() == WL_NO_SHIELD) {
     Serial.println("WiFi shield not present");
     while (true);
   }
   while ( status != WL_CONNECTED) {
     Serial.print("Attempting to connect to WPA SSID:");
-    Serial.println(ssid);
-    status = WiFi.begin(ssid, pass);
+    Serial.println(ssid_cl);
+    status = WiFi.begin(ssid_cl, pass_cl);
     delay(10000);
     Udp.begin(local_port);
   }
@@ -303,21 +306,24 @@ void print_wifi_status() {
 /**
    Checks whether some device connects to the Arduino AP.
 */
-void check_wifi_status() {
-  //  if (status != WiFi.status()) {
-  //    status = WiFi.status();
-  //    Serial.println("WiFi status changed: ");
-  //    if (status == WL_AP_CONNECTED) {
-  //      Serial.println("A device has connected to the HAMR Access Point");
-  //      Udp.flush();
-  //      Udp.begin(local_port);
-  //    } else {
-  //      Serial.println("A device has disconnected from the HAMR Access point: ");
-  //    }
-  //  }
+void check_wifi_status_ap() {
+    if (status != WiFi.status()) {
+      status = WiFi.status();
+      Serial.println("WiFi status changed: ");
+      if (status == WL_AP_CONNECTED) {
+        Serial.println("A device has connected to the HAMR Access Point");
+        Udp.flush();
+        Udp.begin(local_port);
+      } else {
+        Serial.println("A device has disconnected from the HAMR Access point: ");
+      }
+    }
+}
+
+void check_wifi_status_cl() {
   if (status == WL_CONNECTED) return;
   while ( status != WL_CONNECTED) {
-    status = WiFi.begin(ssid, pass);
+    status = WiFi.begin(ssid_cl, pass_cl);
     delay(10000);
   }
   Udp.flush();
@@ -347,7 +353,8 @@ void loop() {
     time_elapsed = (float) (micros() - last_recorded_time);
     time_elapsed_millis = converted_time_elapsed();
     last_recorded_time = micros();
-    check_wifi_status();
+    if (wifi_mode == 0) check_wifi_status_ap();
+    else check_wifi_status_cl();
     check_incoming_messages();
 
     unsigned long time_diff = micros() - last_command_time;
@@ -358,7 +365,7 @@ void loop() {
       desired_M1_v = 0;
       desired_M2_v = 0;
       desired_MT_v = 0;
-      Serial.println("command timeout:" + String(time_diff));
+      //Serial.println("command timeout:" + String(time_diff));
     }
 
     compute_sensed_motor_velocities();
@@ -371,7 +378,7 @@ void loop() {
     set_speed_of_motors();
     //print_pid_errors();
     // print_desired_motor_velocities();
-    print_actual_motor_velocities();
+    //print_actual_motor_velocities();
 
     //Serial.print("drive angle: ");
     //Serial.println(360*sensed_drive_angle);// print theta orientation
