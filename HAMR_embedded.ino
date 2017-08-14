@@ -1,4 +1,3 @@
-
 /*************************************/
 /*                                   */
 /*          HAMR_embedded.ino        */
@@ -32,7 +31,6 @@
 /*                                                 */
 /***************************************************/
 int debugmessage = 0;
-int wifi_mode = 0; // 0 for AP mode, 1 for CL mode
 /******************/
 /* Desired Values */
 /******************/
@@ -148,7 +146,6 @@ float time_elapsed; // microseconds
 float time_elapsed_millis; // time_elapsed converted
 int loop_time_duration; // Timing loop time- for performance testing
 unsigned long last_debug_time = 0;//Timing tracker for debug messages.
-unsigned long last_command_time = 0;//Timing tracker for command signals.
 
 /******************************/
 /*    Test Drive Variables    */
@@ -202,16 +199,18 @@ float dummy2 = 0;
 /*         Wifi        */
 /***********************/
 int status = WL_IDLE_STATUS;
-char ssid_cl[] = "quori_onboard"; // network name
-char pass_cl[] = "Modlab3142"; // WEP password. Change when appropraite
-char ssid_ap[] = "hamr_net"; // network name
-char pass_ap[] = "1231231234"; // WEP password. Change when appropraite
+char ssid[] = "hamr_net"; // network name
+char pass[] = "1231231234"; // WEP password. Change when appropraite
 int keyIndex = 0;
 WiFiServer server(80);
 unsigned int local_port = 2390; // arbitrary local port selected to listen on
 char packet_buffer[255]; // buffer to hold incoming packet
 WiFiUDP Udp;
 MESSAGE_MANAGER_t *msg_manager = (MESSAGE_MANAGER_t*)malloc(sizeof(MESSAGE_MANAGER_t)); // create message_manager
+String ReplyString = " ";
+char ReplyBuffer[100] = "message acknowledged"; //buffer length can change
+
+
 
 /***************************************************/
 /*                                                 */
@@ -230,8 +229,7 @@ void setup() {
   init_actuators();           // initialiaze all motors
   Serial.println("Done setting motors");
   Serial.println("Setting up Wifi...");
-  if (wifi_mode == 0) start_wifi_ap();
-  else start_wifi_cl();
+  start_wifi();
   Serial.println("Done setting Wifi");
   //init_I2C();               // initialize I2C bus as master
   start_time = millis();      // Start timer
@@ -255,14 +253,14 @@ void init_angle_sensors() {
   angle_sensor_MT.init();// i made the clock 10Mhz. it was 1Mhz to star
 }
 
-void start_wifi_ap() {
+void start_wifi() {
   if (WiFi.status() == WL_NO_SHIELD) {
     Serial.println("WiFi Shield is not detected- check if correct Arduino is being used and/or WiFi shield connections");
     while (true);
   }
   Serial.println("Creating access point named:");
-  Serial.println(ssid_ap);
-  status = WiFi.beginAP(ssid_ap, 1, pass_ap, 1);
+  Serial.println(ssid);
+  status = WiFi.beginAP(ssid, 1, pass, 1);
   if (status != WL_AP_LISTENING) {
     Serial.println("Creating the access point failed.");
     while (true);
@@ -271,20 +269,6 @@ void start_wifi_ap() {
   server.begin();
   print_wifi_status();
   Udp.begin(local_port);
-}
-
-void start_wifi_cl() {
-  if (WiFi.status() == WL_NO_SHIELD) {
-    Serial.println("WiFi shield not present");
-    while (true);
-  }
-  while ( status != WL_CONNECTED) {
-    Serial.print("Attempting to connect to WPA SSID:");
-    Serial.println(ssid_cl);
-    status = WiFi.begin(ssid_cl, pass_cl);
-    delay(10000);
-    Udp.begin(local_port);
-  }
 }
 
 /**
@@ -306,28 +290,16 @@ void print_wifi_status() {
 /**
    Checks whether some device connects to the Arduino AP.
 */
-void check_wifi_status_ap() {
-    if (status != WiFi.status()) {
-      status = WiFi.status();
-      Serial.println("WiFi status changed: ");
-      if (status == WL_AP_CONNECTED) {
-        Serial.println("A device has connected to the HAMR Access Point");
-        Udp.flush();
-        Udp.begin(local_port);
-      } else {
-        Serial.println("A device has disconnected from the HAMR Access point: ");
-      }
+void check_wifi_status() {
+  if (status != WiFi.status()) {
+    status = WiFi.status();
+    Serial.println("WiFi status changed: ");
+    if (status == WL_AP_CONNECTED) {
+      Serial.println("A device has connected to the HAMR Access Point");
+    } else {
+      Serial.println("A device has disconnected from the HAMR Access point: ");
     }
-}
-
-void check_wifi_status_cl() {
-  if (status == WL_CONNECTED) return;
-  while ( status != WL_CONNECTED) {
-    status = WiFi.begin(ssid_cl, pass_cl);
-    delay(10000);
   }
-  Udp.flush();
-  Udp.begin(local_port);
 }
 
 /**
@@ -353,20 +325,10 @@ void loop() {
     time_elapsed = (float) (micros() - last_recorded_time);
     time_elapsed_millis = converted_time_elapsed();
     last_recorded_time = micros();
-    if (wifi_mode == 0) check_wifi_status_ap();
-    else check_wifi_status_cl();
+    check_wifi_status();
     check_incoming_messages();
 
-    unsigned long time_diff = micros() - last_command_time;
-    if (time_diff > COMMAND_TIMEOUT) {
-      desired_h_xdot = 0;
-      desired_h_ydot = 0;
-      desired_h_rdot = 0;
-      desired_M1_v = 0;
-      desired_M2_v = 0;
-      desired_MT_v = 0;
-      //Serial.println("command timeout:" + String(time_diff));
-    }
+
 
     compute_sensed_motor_velocities();
     calculate_sensed_drive_angle();
@@ -374,26 +336,26 @@ void loop() {
     if (use_holonomic_drive) {
       holonomic_drive();
     }
-
     set_speed_of_motors();
     //print_pid_errors();
     // print_desired_motor_velocities();
-    //print_actual_motor_velocities();
+    // print_actual_motor_velocities();
 
-    //Serial.print("drive angle: ");
-    //Serial.println(360*sensed_drive_angle);// print theta orientation
-    last_debug_time = micros();
-    //         print_pid_errors();
-    //print_actual_motor_velocities();
-    //         print_desired_motor_velocities();
 
-  }
+    if (micros() - last_debug_time > DEBUGTIME) {
+      //Serial.print("drive angle: ");
+      //Serial.println(360*sensed_drive_angle);// print theta orientation
+      last_debug_time = micros();
+      //         print_pid_errors();
+      print_actual_motor_velocities();
+      //         print_desired_motor_velocities();
 
-  //if time exceed the threshold since last command (in case of network or computer failure), reset the cmd to halt the robot
+    }
 
-  if (loop_time_duration > 5000) { // catch exceptionally long delays
-    Serial.print("delay warning ");
-    Serial.println(loop_time_duration);
+    if (loop_time_duration > 5000) { // catch exceptionally long delays
+      Serial.print("delay warning ");
+      Serial.println(loop_time_duration);
+    }
   }
 }
 
@@ -401,21 +363,21 @@ void loop() {
 /**
    Debugging method that prints the motor velocities calculated from the encoder readings.
 */
+
+//message type 1
 void print_actual_motor_velocities() {
-  //    Serial.println("Sensed M1 velocity: " + String(sensed_M1_v));
-  //    Serial.println("Sensed M2 velocity: " + String(sensed_M2_v));
-  //    Serial.println("Sensed MT velocity: " + String(sensed_MT_v));
-  Serial.println("Sensed velocity: " + String(sensed_M1_v) + "," + String(sensed_M2_v) + "," + String(sensed_MT_v));
+  Serial.println("Sensed M1 velocity: " + String(sensed_M1_v));
+  Serial.println("Sensed M2 velocity: " + String(sensed_M2_v));
+  Serial.println("Sensed MT velocity: " + String(sensed_MT_v));
 }
 
 /**
    Debugging method that prints the desired motor velocities set from the client.
 */
 void print_desired_motor_velocities() {
-  //    Serial.println("Desired M1 Velocity: " + String(M1_v_cmd));
-  //    Serial.println("Desired M2 Velocity: " + String(M2_v_cmd));
-  //    Serial.println("Desired MT Velocity: " + String(MT_v_cmd));
-  Serial.println("Desired velocity: " + String(M1_v_cmd) + "," + String(M2_v_cmd) + "," + String(MT_v_cmd));
+  Serial.println("Desired M1 Velocity: " + String(M1_v_cmd));
+  Serial.println("Desired M2 Velocity: " + String(M2_v_cmd));
+  Serial.println("Desired MT Velocity: " + String(MT_v_cmd));
 }
 
 /**
@@ -450,6 +412,8 @@ float converted_time_elapsed() {
 /**
    Activates holonomic drive- calculates the desired motor velocities from the desired holonomic velocities, then adjusts the motors.
 */
+
+//print sensed_drive_angle
 void holonomic_drive() {
   compute_global_state(-1 * sensed_M1_v, //outputs x,y,r position of system. Could be used to close the loop. Not used for anything-could be unnecessary computing time
                        sensed_M2_v,
@@ -535,10 +499,9 @@ void check_incoming_messages() {
     int len = Udp.read(packet_buffer, 255);
     if (len > 0) {
       packet_buffer[len] = 0;
-      last_command_time = micros();//RESET WATCHDOG HERE
     }
     handle_message(msg_manager, packet_buffer);
-    //Serial.println("rx");// temp debugging measure. by andrew
+    reply_to_message();
   }
 }
 
@@ -605,9 +568,24 @@ void handle_message(MESSAGE_MANAGER_t* msg_manager, char* val) {
       Serial.println("Message not recognized.");
       break;
   }
+
 }
 
+/*
+   Sends a message to reply to the message recieved, replies with actual motor values
+*/
 
+void reply_to_message() {
+  ReplyString =   String(sensed_M1_v) +
+                  " " + String(sensed_M2_v) +
+                  " " + String(sensed_MT_v) +
+                  " " + 2 * PI * sensed_drive_angle;
+
+  strcpy(ReplyBuffer, ReplyString.c_str());
+  Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+  Udp.write(ReplyBuffer);
+  Udp.endPacket();
+}
 
 
 /******************************************************/
@@ -962,4 +940,3 @@ void zipper_path() {
     desired_h_ydot = 0.0;
   }
 }
-
