@@ -229,9 +229,10 @@ void setup() {
   Serial.println("Setting up motors...");
   init_actuators();           // initialiaze all motors
   Serial.println("Done setting motors");
+  delay(1000);
+  wifi_mode = digitalRead(4);
   Serial.println("Setting up Wifi...");
-  if (wifi_mode == 0) start_wifi_ap();
-  else start_wifi_cl();
+  start_wifi();
   Serial.println("Done setting Wifi");
   //init_I2C();               // initialize I2C bus as master
   start_time = millis();      // Start timer
@@ -242,6 +243,9 @@ void setup() {
   Serial.println("Initializing the motors!");
   serial_setup();
   Serial.println("Motors Initialized!");
+  pinMode(4, INPUT); // WIFI_MODE SEL
+  pinMode(5, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 /**
@@ -255,38 +259,44 @@ void init_angle_sensors() {
   angle_sensor_MT.init();// i made the clock 10Mhz. it was 1Mhz to star
 }
 
-void start_wifi_ap() {
-  if (WiFi.status() == WL_NO_SHIELD) {
-    Serial.println("WiFi Shield is not detected- check if correct Arduino is being used and/or WiFi shield connections");
-    while (true);
+void start_wifi() {
+  switch(wifi_mode){
+    case 1:
+      Serial.println("WiFi Starts In AP MODE");
+      if (WiFi.status() == WL_NO_SHIELD) {
+        Serial.println("WiFi Shield is not detected- check if correct Arduino is being used and/or WiFi shield connections");
+        while (true);
+      }
+      Serial.println("Creating access point named:");
+      Serial.println(ssid_ap);
+      status = WiFi.beginAP(ssid_ap, 1, pass_ap, 1);
+      if (status != WL_AP_LISTENING) {
+        Serial.println("Creating the access point failed.");
+        while (true);
+      }
+      delay(1000);
+      server.begin();
+      print_wifi_status();
+      Udp.begin(local_port);
+      break;
+    case 0:
+      Serial.println("WiFi Starts In CL MODE");
+      if (WiFi.status() == WL_NO_SHIELD) {
+        Serial.println("WiFi shield not present");
+        while (true);
+      }
+      
+      digitalWrite(5, LOW);
+      Serial.print("Attempting to connect to WPA SSID:");
+      Serial.println(ssid_cl);
+      status = WiFi.begin(ssid_cl, pass_cl);
+      digitalWrite(5, HIGH);
+      delay(500);
+      
+      Udp.begin(local_port);
+      break;
   }
-  Serial.println("Creating access point named:");
-  Serial.println(ssid_ap);
-  status = WiFi.beginAP(ssid_ap, 1, pass_ap, 1);
-  if (status != WL_AP_LISTENING) {
-    Serial.println("Creating the access point failed.");
-    while (true);
-  }
-  delay(5000);
-  server.begin();
-  print_wifi_status();
-  Udp.begin(local_port);
 }
-
-void start_wifi_cl() {
-  if (WiFi.status() == WL_NO_SHIELD) {
-    Serial.println("WiFi shield not present");
-    while (true);
-  }
-  while ( status != WL_CONNECTED) {
-    Serial.print("Attempting to connect to WPA SSID:");
-    Serial.println(ssid_cl);
-    status = WiFi.begin(ssid_cl, pass_cl);
-    delay(10000);
-    Udp.begin(local_port);
-  }
-}
-
 /**
    Prints the Arduino AP's name, IP, and signal strength
 */
@@ -306,28 +316,42 @@ void print_wifi_status() {
 /**
    Checks whether some device connects to the Arduino AP.
 */
-void check_wifi_status_ap() {
-    if (status != WiFi.status()) {
-      status = WiFi.status();
-      Serial.println("WiFi status changed: ");
-      if (status == WL_AP_CONNECTED) {
-        Serial.println("A device has connected to the HAMR Access Point");
-        Udp.flush();
-        Udp.begin(local_port);
-      } else {
-        Serial.println("A device has disconnected from the HAMR Access point: ");
+void check_wifi_status(){
+  //wifi_mode = digitalRead(4);
+  //digitalWrite(LED_BUILTIN, wifi_mode);
+  //Serial.println(wifi_mode);
+  switch(wifi_mode)
+  {
+    case 1:  //ap_mode
+      if (status != WiFi.status()) {
+        status = WiFi.status();
+        Serial.println("WiFi status changed: ");
+        if (status == WL_AP_CONNECTED) {
+          Serial.println("A device has connected to the HAMR Access Point");
+          digitalWrite(5, HIGH);
+          Udp.flush();
+          Udp.begin(local_port);
+        } else {
+          Serial.println("A device has disconnected from the HAMR Access point: ");
+          digitalWrite(5, LOW);
+        }
       }
-    }
-}
-
-void check_wifi_status_cl() {
-  if (status == WL_CONNECTED) return;
-  while ( status != WL_CONNECTED) {
-    status = WiFi.begin(ssid_cl, pass_cl);
-    delay(10000);
+      break;
+    case 0: //cl_mode
+      if (status == WL_CONNECTED) {
+        digitalWrite(5, HIGH);
+        return;
+      }
+      Serial.println("TRY TO CONNECT");
+      digitalWrite(5, LOW);
+      status = WiFi.begin(ssid_cl, pass_cl);
+      digitalWrite(5, HIGH);
+      delay(500);
+      if (status != WL_CONNECTED) return;
+      Udp.flush();
+      Udp.begin(local_port);
+      break;
   }
-  Udp.flush();
-  Udp.begin(local_port);
 }
 
 /**
@@ -352,9 +376,9 @@ void loop() {
   if ((micros() - last_recorded_time) >= LOOPTIME) { // ensures stable loop time
     time_elapsed = (float) (micros() - last_recorded_time);
     time_elapsed_millis = converted_time_elapsed();
+    
     last_recorded_time = micros();
-    if (wifi_mode == 0) check_wifi_status_ap();
-    else check_wifi_status_cl();
+    check_wifi_status();
     check_incoming_messages();
 
     unsigned long time_diff = micros() - last_command_time;
